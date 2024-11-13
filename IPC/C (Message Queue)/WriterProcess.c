@@ -35,3 +35,6 @@ int main()
 
     return 0;
 }
+
+
+//https://www.geeksforgeeks.org/ipc-using-message-queues/
