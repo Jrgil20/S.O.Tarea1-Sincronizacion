@@ -2,19 +2,32 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <sys/ipc.h>
+#include <sys/msg.h>
+
+#define MSGSZ 128
+
+// Define message structure
+typedef struct msgbuf {
+    long mtype;
+    char mtext[MSGSZ];
+} message_buf;
 
 int main() {
-    int fd1[2]; // Pipe from parent to child
-    int fd2[2]; // Pipe from child to parent
+    int msqid1, msqid2;
+    key_t key1 = 1234, key2 = 5678;
+    message_buf sbuf, rbuf;
+    size_t buf_length;
     pid_t pid;
-    char parent_msg[] = "Mensaje del proceso padre";
-    char child_msg[] = "Mensaje del proceso hijo";
-    char buffer[100];
 
-    // Crear las tuberías
-    if (pipe(fd1) == -1 || pipe(fd2) == -1) {
-        perror("pipe");
-        exit(EXIT_FAILURE);
+    // Create the message queues
+    if ((msqid1 = msgget(key1, IPC_CREAT | 0666)) < 0) {
+        perror("msgget");
+        exit(1);
+    }
+    if ((msqid2 = msgget(key2, IPC_CREAT | 0666)) < 0) {
+        perror("msgget");
+        exit(1);
     }
 
     pid = fork();
@@ -24,32 +37,51 @@ int main() {
         exit(EXIT_FAILURE);
     } else if (pid == 0) {
         // Proceso hijo
-        close(fd1[1]); // Cerrar extremo de escritura de fd1
-        close(fd2[0]); // Cerrar extremo de lectura de fd2
+        // Receive message from parent
+        if (msgrcv(msqid1, &rbuf, MSGSZ, 1, 0) < 0) {
+            perror("msgrcv");
+            exit(1);
+        }
+        printf("Hijo recibió: %s\n", rbuf.mtext);
 
-        // Leer mensaje del padre
-        read(fd1[0], buffer, sizeof(buffer));
-        printf("Hijo recibió: %s\n", buffer);
+        // Send message to parent
+        sbuf.mtype = 1;
+        strcpy(sbuf.mtext, "Mensaje del proceso hijo");
+        buf_length = strlen(sbuf.mtext) + 1;
 
-        // Enviar mensaje al padre
-        write(fd2[1], child_msg, strlen(child_msg) + 1);
+        if (msgsnd(msqid2, &sbuf, buf_length, IPC_NOWAIT) < 0) {
+            perror("msgsnd");
+            exit(1);
+        }
 
-        close(fd1[0]);
-        close(fd2[1]);
     } else {
         // Proceso padre
-        close(fd1[0]); // Cerrar extremo de lectura de fd1
-        close(fd2[1]); // Cerrar extremo de escritura de fd2
+        // Send message to child
+        sbuf.mtype = 1;
+        strcpy(sbuf.mtext, "Mensaje del proceso padre");
+        buf_length = strlen(sbuf.mtext) + 1;
 
-        // Enviar mensaje al hijo
-        write(fd1[1], parent_msg, strlen(parent_msg) + 1);
+        if (msgsnd(msqid1, &sbuf, buf_length, IPC_NOWAIT) < 0) {
+            perror("msgsnd");
+            exit(1);
+        }
 
-        // Leer mensaje del hijo
-        read(fd2[0], buffer, sizeof(buffer));
-        printf("Padre recibió: %s\n", buffer);
+        // Receive message from child
+        if (msgrcv(msqid2, &rbuf, MSGSZ, 1, 0) < 0) {
+            perror("msgrcv");
+            exit(1);
+        }
+        printf("Padre recibió: %s\n", rbuf.mtext);
+    }
 
-        close(fd1[1]);
-        close(fd2[0]);
+    // Remove the message queues
+    if (msgctl(msqid1, IPC_RMID, NULL) < 0) {
+        perror("msgctl");
+        exit(1);
+    }
+    if (msgctl(msqid2, IPC_RMID, NULL) < 0) {
+        perror("msgctl");
+        exit(1);
     }
 
     return 0;
