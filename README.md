@@ -24,6 +24,7 @@
 ## Recursos
 
 - [Documentación de señales en C](https://man7.org/linux/man-pages/man7/signal.7.html)
+- [Sistemas operativos geeksforfeeks](https://www.geeksforgeeks.org/operating-systems)
 - [Guía sobre tuberías en C](https://www.geeksforgeeks.org/pipes-c-programming/)
 - [Memoria compartida en C](https://www.geeksforgeeks.org/ipc-shared-memory/)
-- [Pase de mensajes en C](https://www.geeksforgeeks.org/ipc-message-queues-set-1/)
+- [Pase de mensajes en C](https://www.geeksforgeeks.org/ipc-using-message-queues/)
