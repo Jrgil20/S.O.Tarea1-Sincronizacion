@@ -1,13 +1,13 @@
-// C Program for Message Queue (Writer Process)
+// Programa en C para Cola de Mensajes (Proceso Escritor)
 #include <stdio.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
 #define MAX 10
 
-// structure for message queue
+// estructura para la cola de mensajes
 struct mesg_buffer {
-    long mesg_type;
-    char mesg_text[100];
+    long mesg_type;       // tipo de mensaje
+    char mesg_text[100];  // contenido del mensaje
 } message;
 
 int main()
@@ -15,22 +15,23 @@ int main()
     key_t key;
     int msgid;
 
-    // ftok to generate unique key
+    // ftok para generar una clave única
     key = ftok("progfile", 65);
 
-    // msgget creates a message queue
-    // and returns identifier
+    // msgget crea una cola de mensajes
+    // y devuelve el identificador
     msgid = msgget(key, 0666 | IPC_CREAT);
     message.mesg_type = 1;
 
-    printf("Write Data : ");
-    fgets(message.mesg_text,MAX,stdin);
+    // Solicitar al usuario que escriba los datos
+    printf("Escribe los datos: ");
+    fgets(message.mesg_text, MAX, stdin);
 
-    // msgsnd to send message
+    // msgsnd para enviar el mensaje
     msgsnd(msgid, &message, sizeof(message), 0);
 
-    // display the message
-    printf("Data send is : %s \n", message.mesg_text);
+    // mostrar el mensaje enviado
+    printf("Datos enviados: %s \n", message.mesg_text);
 
     return 0;
 }
