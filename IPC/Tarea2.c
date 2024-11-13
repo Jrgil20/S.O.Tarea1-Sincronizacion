@@ -20,51 +20,97 @@ int main() {
 
     if (method == 1) {
         // Usando tuberías
-        int fd[2];
+        int fd1[2]; // Pipe 1: Parent to Child
+        int fd2[2]; // Pipe 2: Child to Parent
         pid_t pid;
-        char mensaje[] = "Hola desde el proceso padre";
+        char parent_msg[] = "Mensaje desde el padre";
+        char child_msg[] = "Mensaje desde el hijo";
         char buffer[100];
 
-        if (pipe(fd) == -1) {
-            perror("pipe");
+        if (pipe(fd1) == -1 || pipe(fd2) == -1) {
+            perror("Error al crear las tuberías");
             exit(EXIT_FAILURE);
         }
 
         pid = fork();
-        if (pid == -1) {
-            perror("fork");
+
+        if (pid < 0) {
+            perror("Error al crear el proceso hijo");
             exit(EXIT_FAILURE);
-        } else if (pid == 0) {
-            // Proceso hijo
-            close(fd[1]);
-            read(fd[0], buffer, sizeof(buffer));
-            printf("Proceso hijo recibió: %s\n", buffer);
-            close(fd[0]);
-        } else {
+        } else if (pid > 0) {
             // Proceso padre
-            close(fd[0]);
-            write(fd[1], mensaje, strlen(mensaje) + 1);
-            close(fd[1]);
-            wait(NULL);
+            close(fd1[0]); // Cerrar lectura de fd1
+            close(fd2[1]); // Cerrar escritura de fd2
+
+            // Enviar mensaje al hijo
+            write(fd1[1], parent_msg, strlen(parent_msg) + 1);
+            close(fd1[1]); // Cerrar escritura de fd1
+
+            // Leer mensaje del hijo
+            read(fd2[0], buffer, sizeof(buffer));
+            printf("Padre recibió: %s\n", buffer);
+            close(fd2[0]); // Cerrar lectura de fd2
+
+        } else {
+            // Proceso hijo
+            close(fd1[1]); // Cerrar escritura de fd1
+            close(fd2[0]); // Cerrar lectura de fd2
+
+            // Leer mensaje del padre
+            read(fd1[0], buffer, sizeof(buffer));
+            printf("Hijo recibió: %s\n", buffer);
+            close(fd1[0]); // Cerrar lectura de fd1
+
+            // Enviar mensaje al padre
+            write(fd2[1], child_msg, strlen(child_msg) + 1);
+            close(fd2[1]); // Cerrar escritura de fd2
+
+            exit(0);
         }
+
     } else if (method == 2) {
         // Usando memoria compartida
         key_t key = ftok("shmfile",65);
         int shmid = shmget(key, SHM_SIZE, 0666|IPC_CREAT);
-        char *str = (char*) shmat(shmid, (void*)0, 0);
+        char *data = (char*) shmat(shmid, (void*)0, 0);
 
         pid_t pid = fork();
-        if (pid == 0) {
-            // Proceso hijo
-            sleep(1); // Esperar a que el padre escriba
-            printf("Proceso hijo leyó: %s\n", str);
-            shmdt(str);
+
+        if (pid < 0) {
+            perror("Error en fork");
+            exit(1);
+        } else if (pid == 0) {
+            // Primer proceso hijo
+            // Escribir en la memoria compartida
+            strcpy(data, "Mensaje desde el proceso hijo");
+            shmdt(data);
+            exit(0);
         } else {
             // Proceso padre
-            strcpy(str, "Hola desde el proceso padre");
-            shmdt(str);
-            wait(NULL);
-            shmctl(shmid, IPC_RMID, NULL);
+            wait(NULL); // Esperar al primer hijo
+
+            // Leer de la memoria compartida
+            printf("Proceso padre recibió: %s\n", data);
+            // Modificar los datos
+            strcpy(data, "Mensaje desde el proceso padre");
+
+            pid_t pid2 = fork();
+
+            if (pid2 < 0) {
+                perror("Error en fork");
+                exit(1);
+            } else if (pid2 == 0) {
+                // Segundo proceso hijo
+                sleep(1); // Esperar a que el padre escriba
+                printf("Segundo proceso hijo recibió: %s\n", data);
+                shmdt(data);
+                exit(0);
+            } else {
+                // Proceso padre
+                wait(NULL); // Esperar al segundo hijo
+                shmdt(data);
+                shmctl(shmid, IPC_RMID, NULL); // Eliminar segmento de memoria compartida
+            }
         }
 
     } else if (method == 3) {
